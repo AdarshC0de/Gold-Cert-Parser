@@ -99,7 +99,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
 
-      results: rows.map((row) => ({
+      results: rows.map((row: typeof rows[number]) => ({
         matchedRow: row,
 
         document: {
