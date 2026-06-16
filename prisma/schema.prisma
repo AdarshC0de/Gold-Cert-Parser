@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+model User {
+  id        String     @id @default(cuid())
+  name      String?
+  email     String     @unique
+  password  String
+  role      Role       @default(USER)
+  documents Document[]
+  createdAt DateTime   @default(now())
+}
+
+model Document {
+  id           String         @id @default(cuid())
+  userId       String
+  user         User           @relation(fields: [userId], references: [id])
+  fileUrl      String         // path/URL to the uploaded image/PDF
+  refNumber    String?        // الاشارة
+  refDate      String?        // التاريخ (kept as string since handwritten/free text)
+  manufacturer String?        // e.g. VALCAMBI
+  origin       String?        // منشأها e.g. سويسرا (Switzerland)
+  agent        String?        // العائدة (company name)
+  invoiceNo    String?
+  certNo       String?        // رقم شهادة المنشا
+  verified     Boolean        @default(false)
+  rawOcrText   String?        // store raw OCR output for debugging/reprocessing
+  rows         DocumentRow[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([userId])
+}
+
+model DocumentRow {
+  id         String   @id @default(cuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  rowOrder   Int      // m column (1,2,3...)
+  gram       String   // "1GRAM", "2.5GRAMS", "ONZ", etc — kept as string label
+  gramValue  Float?   // numeric gram value for searching, e.g. 1, 2.5, 10 (null for ONZ)
+  count      Int      // عدد
+  serialFrom Int      // إلى (higher number)
+  serialTo Int      // من (lower number)
+  series     String   // سلسلة e.g. "AA", "AC"
+  purity     String?  // العيار e.g. "999.9"
+  brand      String?  // الماركة e.g. "VALCAMBI"
+
+  @@index([gramValue, series, serialFrom, serialTo])
+}
