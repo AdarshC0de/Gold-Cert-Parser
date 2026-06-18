@@ -12,32 +12,48 @@ enum Role {
 }
 
 model User {
-  id        String     @id @default(cuid())
-  name      String?
-  email     String     @unique
-  password  String
-  role      Role       @default(USER)
-  documents Document[]
-  createdAt DateTime   @default(now())
+  id            String        @id @default(cuid())
+  name          String?
+  email         String        @unique
+  password      String
+  role          Role          @default(USER)
+  companyName   String?
+  isActive      Boolean       @default(true)
+  maxDevices    Int           @default(2)
+  mustChangePassword Boolean  @default(false)
+  documents     Document[]
+  sessions      UserSession[]
+  createdAt     DateTime      @default(now())
+}
+
+model UserSession {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fingerprint String
+  lastSeen    DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, fingerprint])
 }
 
 model Document {
-  id           String         @id @default(cuid())
+  id           String        @id @default(cuid())
   userId       String
-  user         User           @relation(fields: [userId], references: [id])
-  fileUrl      String         // path/URL to the uploaded image/PDF
-  refNumber    String?        // الاشارة
-  refDate      String?        // التاريخ (kept as string since handwritten/free text)
-  manufacturer String?        // e.g. VALCAMBI
-  origin       String?        // منشأها e.g. سويسرا (Switzerland)
-  agent        String?        // العائدة (company name)
+  user         User          @relation(fields: [userId], references: [id])
+  fileUrl      String
+  refNumber    String?
+  refDate      String?
+  manufacturer String?
+  origin       String?
+  agent        String?
   invoiceNo    String?
-  certNo       String?        // رقم شهادة المنشا
-  verified     Boolean        @default(false)
-  rawOcrText   String?        // store raw OCR output for debugging/reprocessing
+  certNo       String?
+  verified     Boolean       @default(false)
+  rawOcrText   String?
   rows         DocumentRow[]
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   @@index([userId])
 }
@@ -46,16 +62,15 @@ model DocumentRow {
   id         String   @id @default(cuid())
   documentId String
   document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  rowOrder   Int
+  gram       String
+  gramValue  Float?
+  count      Int
+  serialFrom Int
+  serialTo   Int
+  series     String
+  purity     String?
+  brand      String?
 
-  rowOrder   Int      // m column (1,2,3...)
-  gram       String   // "1GRAM", "2.5GRAMS", "ONZ", etc — kept as string label
-  gramValue  Float?   // numeric gram value for searching, e.g. 1, 2.5, 10 (null for ONZ)
-  count      Int      // عدد
-  serialFrom Int      // إلى (higher number)
-  serialTo Int      // من (lower number)
-  series     String   // سلسلة e.g. "AA", "AC"
-  purity     String?  // العيار e.g. "999.9"
-  brand      String?  // الماركة e.g. "VALCAMBI"
-
-  @@index([gramValue, series, serialFrom, serialTo])
+  @@index([gram, series, serialFrom, serialTo])
 }
