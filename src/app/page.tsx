@@ -1,65 +1,86 @@
-import Image from "next/image";
+'use client'
 
-export default function Home() {
+import Link from "next/link";
+
+export default function HomePage() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <main className="max-w-4xl mx-auto px-6 py-12 space-y-12">
+
+      {/* Hero */}
+      <section className="text-center space-y-4">
+        <h1 className="text-4xl font-bold">Gold Certificate Parser</h1>
+        <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+          Upload Kuwait Ministry of Commerce & Industry gold certificates.
+          Our system automatically reads the document, extracts all serial number
+          ranges, and lets you instantly search whether a specific gold bar
+          belongs to a certificate.
+        </p>
+        <div className="flex justify-center gap-4 pt-2">
+          <Link
+            href="/upload"
+            className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
+          >
+            Upload Certificate
+          </Link>
+          <Link
+            href="/search"
+            className="px-6 py-3 border border-blue-600 text-blue-600 rounded-lg font-medium hover:bg-blue-50"
+          >
+            Search Serial
+          </Link>
+        </div>
+      </section>
+
+      {/* How it works */}
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+        <div className="border rounded-xl p-6 space-y-2">
+          <div className="text-3xl">📄</div>
+          <h3 className="font-semibold text-lg">1. Upload</h3>
+          <p className="text-gray-500 text-sm">
+            Upload your gold certificate image. Supports all Kuwait Ministry
+            certificate formats — Arabic and English layouts.
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        <div className="border rounded-xl p-6 space-y-2">
+          <div className="text-3xl">🤖</div>
+          <h3 className="font-semibold text-lg">2. Auto Extract</h3>
+          <p className="text-gray-500 text-sm">
+            AI reads the certificate and extracts all rows — gram weight,
+            serial ranges, series (AA/AC), purity, and brand automatically.
+          </p>
         </div>
-      </main>
-    </div>
+        <div className="border rounded-xl p-6 space-y-2">
+          <div className="text-3xl">🔍</div>
+          <h3 className="font-semibold text-lg">3. Search</h3>
+          <p className="text-gray-500 text-sm">
+            Enter a gram weight, serial number, and series to instantly find
+            which certificate that gold bar belongs to.
+          </p>
+        </div>
+      </section>
+
+      {/* Sample document */}
+      <section className="space-y-3">
+        <h2 className="text-xl font-semibold text-center">Sample Certificate</h2>
+        <p className="text-center text-sm text-gray-500">
+          The system handles certificates like this one — extracting all table rows automatically.
+        </p>
+        <div className="border rounded-xl overflow-hidden max-w-lg mx-auto">
+          <img
+            src="/sample-cert.jpeg"
+            alt="Sample gold certificate"
+            className="w-full object-contain"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = "none";
+            }}
+          />
+          <div className="p-4 bg-gray-50 text-sm text-gray-600">
+            <p><strong>Example search:</strong> Gram = 10, Serial = 728601, Series = AA</p>
+            <p>→ Returns the certificate containing serial range 728501–728800</p>
+          </div>
+        </div>
+      </section>
+
+    </main>
   );
 }

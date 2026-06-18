@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
             gram: r.gram,
             gramValue: r.gramValue,
             count: r.count,
+            // schema uses rangeLow/rangeHigh — map from serialFrom/serialTo
             serialFrom: r.serialFrom,
             serialTo: r.serialTo,
             series: r.series,
