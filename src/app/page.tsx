@@ -31,6 +31,18 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Demo credentials */}
+<section className="max-w-md mx-auto">
+  <div className="border-2 border-dashed border-blue-300 bg-blue-50 rounded-xl p-4 text-center space-y-2">
+    <p className="text-sm font-semibold text-blue-700">Try the Demo</p>
+    <p className="text-xs text-gray-600">Use these credentials to log in and explore</p>
+    <div className="bg-white rounded-lg border p-3 text-sm font-mono space-y-1">
+      <p><span className="text-gray-500">Email:</span> admin@gmail.com</p>
+      <p><span className="text-gray-500">Password:</span> admin123</p>
+    </div>
+  </div>
+</section>
+
       {/* How it works */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
         <div className="border rounded-xl p-6 space-y-2">
