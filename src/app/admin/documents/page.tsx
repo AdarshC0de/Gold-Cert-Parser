@@ -34,7 +34,7 @@ export default function AdminDocumentsPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [lightbox, setLightbox] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [tableModal, setTableModal] = useState<Document | null>(null);
 
   const isAdmin = (session?.user as any)?.role === "ADMIN";
 
@@ -53,21 +53,89 @@ export default function AdminDocumentsPage() {
   }
 
   return (
-    <main className="max-w-6xl mx-auto p-6 space-y-6">
+    <main className="w-full px-6 py-6 space-y-6">
 
-      {/* Lightbox */}
+      {/* Image lightbox */}
       {lightbox && (
         <div
           className="fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center p-4"
           onClick={() => setLightbox(null)}
         >
-          <img
-            src={lightbox}
-            alt="certificate"
-            className="max-w-full max-h-full object-contain rounded shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          />
+          <img src={lightbox} alt="certificate" className="max-w-full max-h-full object-contain rounded shadow-2xl" onClick={(e) => e.stopPropagation()} />
           <button className="absolute top-4 right-4 text-white text-4xl font-bold" onClick={() => setLightbox(null)}>✕</button>
+        </div>
+      )}
+
+      {/* Table modal — wide and clean */}
+      {tableModal && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4"
+          onClick={() => setTableModal(null)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div className="flex items-center justify-between p-4 border-b bg-gray-50">
+              <div>
+                <h3 className="font-semibold text-lg">Cert No: {tableModal.certNo ?? "—"}</h3>
+                <p className="text-sm text-gray-500">{tableModal.manufacturer} · {tableModal.refDate} · {tableModal.user?.email}</p>
+              </div>
+              <div className="flex gap-2">
+                <Link
+                  href={`/admin/documents/${tableModal.id}`}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+                >
+                  Edit Document
+                </Link>
+                <button
+                  onClick={() => setTableModal(null)}
+                  className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-100"
+                >
+                  ✕ Close
+                </button>
+              </div>
+            </div>
+
+            {/* Modal body — scrollable table */}
+            <div className="overflow-auto p-4 flex-1">
+              <table className="w-full text-sm border">
+                <thead>
+                  <tr className="bg-gray-100 sticky top-0">
+                    <th className="border p-2 text-left">#</th>
+                    <th className="border p-2 text-left">Gram</th>
+                    <th className="border p-2 text-left">Count</th>
+                    <th className="border p-2 text-left">From (low)</th>
+                    <th className="border p-2 text-left">To (high)</th>
+                    <th className="border p-2 text-left">Series</th>
+                    <th className="border p-2 text-left">Purity</th>
+                    <th className="border p-2 text-left">Brand</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tableModal.rows
+                    .sort((a, b) => a.rowOrder - b.rowOrder)
+                    .map((row) => (
+                      <tr key={row.id} className="hover:bg-gray-50">
+                        <td className="border p-2">{row.rowOrder}</td>
+                        <td className="border p-2 font-medium">{row.gram}</td>
+                        <td className="border p-2">{row.count}</td>
+                        <td className="border p-2">{row.serialFrom}</td>
+                        <td className="border p-2">{row.serialTo}</td>
+                        <td className="border p-2">
+                          <span className={`px-2 py-0.5 rounded text-xs ${row.series === "AA" ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"}`}>
+                            {row.series}
+                          </span>
+                        </td>
+                        <td className="border p-2">{row.purity}</td>
+                        <td className="border p-2">{row.brand}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 
@@ -76,90 +144,41 @@ export default function AdminDocumentsPage() {
         <span className="text-sm text-gray-500">{documents.length} total</span>
       </div>
 
-      {documents.length === 0 && (
-        <p className="text-gray-500">No documents uploaded yet.</p>
-      )}
+      {documents.length === 0 && <p className="text-gray-500">No documents uploaded yet.</p>}
 
-      <div className="space-y-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
         {documents.map((doc) => (
-          <div key={doc.id} className="border rounded-xl shadow-sm overflow-hidden">
+          <div key={doc.id} className="border rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+            <img
+              src={doc.fileUrl}
+              alt="certificate"
+              className="w-full h-48 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+              onClick={() => setLightbox(doc.fileUrl)}
+              title="Click to enlarge"
+            />
+            <div className="p-3 space-y-1 text-xs text-gray-600">
+              <p><strong>Cert No:</strong> {doc.certNo ?? "—"}</p>
+              <p><strong>Invoice:</strong> {doc.invoiceNo ?? "—"}</p>
+              <p><strong>Manufacturer:</strong> {doc.manufacturer ?? "—"}</p>
+              <p><strong>Date:</strong> {doc.refDate ?? "—"}</p>
+              <p><strong>By:</strong> {doc.user?.email ?? "—"}</p>
+              <p className="text-gray-400">{new Date(doc.createdAt).toLocaleDateString()}</p>
 
-            {/* Document header row */}
-            <div className="flex gap-4 p-4 bg-white">
-              {/* Thumbnail */}
-              <div className="flex-shrink-0">
-                <img
-                  src={doc.fileUrl}
-                  alt="certificate"
-                  className="w-24 h-32 object-cover border rounded cursor-pointer hover:opacity-80"
-                  onClick={() => setLightbox(doc.fileUrl)}
-                  title="Click to enlarge"
-                />
-              </div>
-
-              {/* Info */}
-              <div className="flex-1 text-sm space-y-1">
-                <p><strong>Cert No:</strong> {doc.certNo ?? "—"}</p>
-                <p><strong>Invoice:</strong> {doc.invoiceNo ?? "—"}</p>
-                <p><strong>Manufacturer:</strong> {doc.manufacturer ?? "—"}</p>
-                <p><strong>Date:</strong> {doc.refDate ?? "—"}</p>
-                <p><strong>Uploaded by:</strong> {doc.user?.email ?? "—"}</p>
-                <p><strong>Uploaded at:</strong> {new Date(doc.createdAt).toLocaleString()}</p>
-                <p><strong>Rows:</strong> {doc.rows.length}</p>
-              </div>
-
-              {/* Actions */}
-              <div className="flex flex-col gap-2 text-sm">
+              <div className="flex gap-2 pt-2">
                 <button
-                  onClick={() => setExpandedId(expandedId === doc.id ? null : doc.id)}
-                  className="px-3 py-1 border rounded hover:bg-gray-50"
+                  onClick={() => setTableModal(doc)}
+                  className="flex-1 px-2 py-1 border rounded hover:bg-gray-50"
                 >
-                  {expandedId === doc.id ? "Hide Table" : "View Table"}
+                  Table
                 </button>
                 <Link
                   href={`/admin/documents/${doc.id}`}
-                  className="px-3 py-1 border rounded hover:bg-gray-50 text-center"
+                  className="flex-1 px-2 py-1 border rounded hover:bg-gray-50 text-center"
                 >
                   Edit
                 </Link>
               </div>
             </div>
-
-            {/* Expandable table */}
-            {expandedId === doc.id && (
-              <div className="border-t overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="bg-gray-50">
-                      <th className="border-b p-2 text-left">#</th>
-                      <th className="border-b p-2 text-left">Gram</th>
-                      <th className="border-b p-2 text-left">Count</th>
-                      <th className="border-b p-2 text-left">From</th>
-                      <th className="border-b p-2 text-left">To</th>
-                      <th className="border-b p-2 text-left">Series</th>
-                      <th className="border-b p-2 text-left">Purity</th>
-                      <th className="border-b p-2 text-left">Brand</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {doc.rows
-                      .sort((a, b) => a.rowOrder - b.rowOrder)
-                      .map((row) => (
-                        <tr key={row.id} className="hover:bg-gray-50">
-                          <td className="border-b p-2">{row.rowOrder}</td>
-                          <td className="border-b p-2">{row.gram}</td>
-                          <td className="border-b p-2">{row.count}</td>
-                          <td className="border-b p-2">{row.serialFrom}</td>
-                          <td className="border-b p-2">{row.serialTo}</td>
-                          <td className="border-b p-2">{row.series}</td>
-                          <td className="border-b p-2">{row.purity}</td>
-                          <td className="border-b p-2">{row.brand}</td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
           </div>
         ))}
       </div>
