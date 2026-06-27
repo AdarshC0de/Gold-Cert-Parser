@@ -39,9 +39,14 @@ export const authOptions: NextAuthOptions = {
           (s) => s.fingerprint === fingerprint
         );
 
+        // if (!existingSession) {
+        //   // New device — check device limit
+        //   if (user.sessions.length >= user.maxDevices) {
+        //     throw new Error("DEVICE_LIMIT_REACHED");
+        //   }
         if (!existingSession) {
-          // New device — check device limit
-          if (user.sessions.length >= user.maxDevices) {
+          // Admin has no device limit
+          if (user.role !== "ADMIN" && user.sessions.length >= user.maxDevices) {
             throw new Error("DEVICE_LIMIT_REACHED");
           }
 
