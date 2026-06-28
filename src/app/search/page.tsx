@@ -160,6 +160,7 @@ export default function SearchPage() {
                   title="Click to enlarge"
                 />
                 <p className="text-xs text-center text-gray-400 mt-1">Click to enlarge</p>
+                <a href={r.document.fileUrl} download target="_blank" rel="noopener noreferrer" className="block text-center text-xs mt-1 px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded border"> ⬇ Download </a>
               </div>
 
               <div className="text-sm space-y-1 flex-1">

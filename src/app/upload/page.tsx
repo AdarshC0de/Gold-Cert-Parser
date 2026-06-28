@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import type { ParsedRow, ParsedHeader } from "@/lib/parser";
 
 export default function UploadPage() {
@@ -11,8 +12,7 @@ export default function UploadPage() {
   const [files, setFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<{ name: string; status: string }[]>([]);
-
-  // Admin-only state for review table
+  const [pdfResult, setPdfResult] = useState<{ pagesFound: number; message: string } | null>(null);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [header, setHeader] = useState<ParsedHeader | null>(null);
   const [rows, setRows] = useState<ParsedRow[]>([]);
@@ -22,19 +22,16 @@ export default function UploadPage() {
   const isAdmin = (session?.user as any)?.role === "ADMIN";
 
   if (status === "loading") return null;
-
   if (status === "unauthenticated") {
     return (
       <main className="max-w-md mx-auto p-6 text-center space-y-3">
         <p>Please log in to upload documents.</p>
-        <button onClick={() => router.push("/login")} className="px-4 py-2 bg-blue-600 text-white rounded">
-          Go to Login
-        </button>
+        <button onClick={() => router.push("/login")} className="px-4 py-2 bg-blue-600 text-white rounded">Go to Login</button>
       </main>
     );
   }
 
-  async function uploadSingleFile(file: File): Promise<{ fileUrl: string; header: ParsedHeader; rows: ParsedRow[] }> {
+  async function uploadSingleFile(file: File) {
     const formData = new FormData();
     formData.append("file", file);
     const res = await fetch("/api/upload", { method: "POST", body: formData });
@@ -47,12 +44,7 @@ export default function UploadPage() {
     const res = await fetch("/api/documents", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId: (session!.user as any).id,
-        fileUrl,
-        header,
-        rows,
-      }),
+      body: JSON.stringify({ userId: (session!.user as any).id, fileUrl, header, rows }),
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.error ?? "Save failed");
@@ -63,11 +55,33 @@ export default function UploadPage() {
     setLoading(true);
     setSaved(false);
     setResults([]);
+    setPdfResult(null);
+    setFileUrl(null);
+    setHeader(null);
+    setRows([]);
 
-    if (isAdmin && files.length === 1) {
-      // Admin single file — show review table
+    const pdfFiles = files.filter((f) => f.name.toLowerCase().endsWith(".pdf"));
+    const imageFiles = files.filter((f) => !f.name.toLowerCase().endsWith(".pdf"));
+
+    // Handle PDFs
+    for (const pdf of pdfFiles) {
+      const formData = new FormData();
+      formData.append("file", pdf);
+      const res = await fetch("/api/upload-pdf", { method: "POST", body: formData });
+      const data = await res.json();
+      if (data.success) {
+        setPdfResult({ pagesFound: data.pagesFound, message: data.message });
+      } else {
+        setResults((prev) => [...prev, { name: pdf.name, status: "✗ PDF failed: " + data.error }]);
+      }
+    }
+
+    if (!imageFiles.length) { setLoading(false); return; }
+
+    // Admin single image — show review table
+    if (isAdmin && imageFiles.length === 1 && !pdfFiles.length) {
       try {
-        const { fileUrl, header, rows } = await uploadSingleFile(files[0]);
+        const { fileUrl, header, rows } = await uploadSingleFile(imageFiles[0]);
         setFileUrl(fileUrl);
         setHeader(header);
         setRows(rows);
@@ -78,17 +92,16 @@ export default function UploadPage() {
       return;
     }
 
-    // Bulk upload (or regular user) — auto save all, no review table
+    // Bulk images — auto save
     const newResults: { name: string; status: string }[] = [];
-    for (let i = 0; i < files.length; i++) {
+    for (let i = 0; i < imageFiles.length; i++) {
       setCurrentFileIndex(i);
-      const file = files[i];
       try {
-        const { fileUrl, header, rows } = await uploadSingleFile(file);
+        const { fileUrl, header, rows } = await uploadSingleFile(imageFiles[i]);
         await saveDocument(fileUrl, header, rows);
-        newResults.push({ name: file.name, status: "✓ Saved" });
+        newResults.push({ name: imageFiles[i].name, status: "✓ Saved" });
       } catch (e: any) {
-        newResults.push({ name: file.name, status: "✗ Failed: " + e.message });
+        newResults.push({ name: imageFiles[i].name, status: "✗ Failed: " + e.message });
       }
       setResults([...newResults]);
     }
@@ -115,18 +128,15 @@ export default function UploadPage() {
     <main className="max-w-4xl mx-auto p-6 space-y-6">
       <h1 className="text-2xl font-bold">Upload Certificate</h1>
 
-      {/* Drop zone */}
       <label className="flex flex-col items-center justify-center w-full h-44 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors">
         <div className="text-center space-y-2">
           <div className="text-4xl">📎</div>
           <p className="text-gray-600 font-medium">
             {files.length > 0
-              ? files.length === 1
-                ? files[0].name
-                : `${files.length} files selected`
+              ? files.length === 1 ? files[0].name : `${files.length} files selected`
               : "Click to choose file(s)"}
           </p>
-          <p className="text-xs text-gray-400">JPG, PNG, PDF — single or multiple files</p>
+          <p className="text-xs text-gray-400">JPG, PNG — single or multiple · PDF with multiple certificates</p>
         </div>
         <input
           type="file"
@@ -137,19 +147,32 @@ export default function UploadPage() {
         />
       </label>
 
-      <button
-        onClick={handleUpload}
-        disabled={!files.length || loading}
-        className="px-6 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50"
-      >
-        {loading
-          ? files.length > 1
-            ? `Processing ${currentFileIndex + 1} of ${files.length}...`
-            : "Processing..."
-          : "Upload & Save"}
-      </button>
+      <div className="flex items-center gap-3">
+        <button
+          onClick={handleUpload}
+          disabled={!files.length || loading}
+          className="px-6 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50"
+        >
+          {loading
+            ? files.length > 1 ? `Processing ${currentFileIndex + 1} of ${files.length}...` : "Processing..."
+            : "Upload & Save"}
+        </button>
+        {(results.length > 0 || pdfResult) && (
+          <Link href="/queue" className="text-sm text-blue-600 hover:underline">View Processing Queue →</Link>
+        )}
+      </div>
 
-      {/* Bulk results (non-admin or multiple files) */}
+      {pdfResult && (
+        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-1">
+          <p className="font-medium text-blue-800">PDF uploaded successfully</p>
+          <p className="text-sm text-blue-700">{pdfResult.message}</p>
+          <p className="text-xs text-blue-600">
+            Pages are being processed automatically.{" "}
+            <Link href="/queue" className="underline">Check queue status →</Link>
+          </p>
+        </div>
+      )}
+
       {results.length > 0 && (
         <section className="space-y-2">
           <h2 className="font-semibold">Upload Results</h2>
@@ -164,33 +187,24 @@ export default function UploadPage() {
         </section>
       )}
 
-      {/* Admin review table (single file only) */}
       {isAdmin && header && rows.length > 0 && !saved && (
         <section className="space-y-4">
           <h2 className="font-semibold text-lg">Review & Edit Before Saving</h2>
-
-          {/* Header fields */}
           <div className="grid grid-cols-2 gap-3">
             {(["manufacturer", "origin", "invoiceNo", "certNo", "refDate"] as (keyof ParsedHeader)[]).map((field) => (
-              <label key={field} className="flex flex-col text-sm capitalize">
+              <label key={field} className="flex flex-col text-sm">
                 {field.replace(/([A-Z])/g, " $1")}
-                <input
-                  className="border rounded p-1 mt-1"
-                  value={(header as any)[field] ?? ""}
-                  onChange={(e) => setHeader({ ...header, [field]: e.target.value })}
-                />
+                <input className="border rounded p-1 mt-1" value={(header as any)[field] ?? ""} onChange={(e) => setHeader({ ...header, [field]: e.target.value })} />
               </label>
             ))}
           </div>
-
-          {/* Rows table */}
           <table className="w-full text-sm border">
             <thead>
               <tr className="bg-gray-100">
                 <th className="border p-1">Gram</th>
                 <th className="border p-1">Count</th>
-                <th className="border p-1">From (low)</th>
-                <th className="border p-1">To (high)</th>
+                <th className="border p-1">From</th>
+                <th className="border p-1">To</th>
                 <th className="border p-1">Series</th>
                 <th className="border p-1">Purity</th>
                 <th className="border p-1">Brand</th>
@@ -212,7 +226,6 @@ export default function UploadPage() {
               ))}
             </tbody>
           </table>
-
           <button onClick={handleSave} disabled={loading} className="px-4 py-2 bg-green-600 text-white rounded disabled:opacity-50">
             {loading ? "Saving..." : "Save Document"}
           </button>
