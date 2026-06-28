@@ -14,6 +14,7 @@ export default function NavBar() {
         <Link href="/upload">Upload</Link>
         <Link href="/documents">Documents</Link>
         <Link href="/search">Search</Link>
+        <Link href="/queue">Queue</Link>
         {isAdmin && (
           <>
             <Link href="/admin/companies" className="text-purple-600">Companies</Link>

@@ -11,19 +11,27 @@ enum Role {
   USER
 }
 
+enum JobStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+}
+
 model User {
-  id            String        @id @default(cuid())
-  name          String?
-  email         String        @unique
-  password      String
-  role          Role          @default(USER)
-  companyName   String?
-  isActive      Boolean       @default(true)
-  maxDevices    Int           @default(2)
-  mustChangePassword Boolean  @default(false)
-  documents     Document[]
-  sessions      UserSession[]
-  createdAt     DateTime      @default(now())
+  id                 String          @id @default(cuid())
+  name               String?
+  email              String          @unique
+  password           String
+  role               Role            @default(USER)
+  companyName        String?
+  isActive           Boolean         @default(true)
+  maxDevices         Int             @default(2)
+  mustChangePassword Boolean         @default(false)
+  documents          Document[]
+  sessions           UserSession[]
+  processingJobs     ProcessingJob[]
+  createdAt          DateTime        @default(now())
 }
 
 model UserSession {
@@ -73,4 +81,20 @@ model DocumentRow {
   brand      String?
 
   @@index([gram, series, serialFrom, serialTo])
+}
+
+model ProcessingJob {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fileUrl    String
+  fileName   String
+  status     JobStatus @default(PENDING)
+  error      String?
+  documentId String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([userId, status])
+  @@index([status])
 }
