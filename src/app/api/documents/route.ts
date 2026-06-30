@@ -1,27 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { ParsedHeader, ParsedRow } from "@/lib/parser";
+import { getSession } from "@/lib/auth";
+import { ParsedRow } from "@/lib/parser";
 
 export const runtime = "nodejs";
 
-interface SaveDocumentBody {
-  userId: string;
-  fileUrl: string;
-  rawText?: string;
-  header: ParsedHeader;
-  rows: ParsedRow[];
-}
-
 export async function POST(req: NextRequest) {
-  try {
-    const body: SaveDocumentBody = await req.json();
-    const { userId, fileUrl, rawText, header, rows } = body;
+  const session = await getSession();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
-    if (!userId || !fileUrl || !rows?.length) {
-      return NextResponse.json(
-        { error: "userId, fileUrl, and at least one row are required" },
-        { status: 400 }
-      );
+  try {
+    const { fileUrl, rawText, header, rows } = await req.json();
+    const userId = (session.user as any).id;
+
+    if (!fileUrl || !rows?.length) {
+      return NextResponse.json({ error: "fileUrl and rows are required" }, { status: 400 });
     }
 
     const document = await prisma.document.create({
@@ -29,19 +24,18 @@ export async function POST(req: NextRequest) {
         userId,
         fileUrl,
         rawOcrText: rawText,
-        manufacturer: header.manufacturer,
-        origin: header.origin,
-        invoiceNo: header.invoiceNo,
-        certNo: header.certNo,
-        refDate: header.refDate,
+        manufacturer: header?.manufacturer,
+        origin: header?.origin,
+        invoiceNo: header?.invoiceNo,
+        certNo: header?.certNo,
+        refDate: header?.refDate,
         verified: true,
         rows: {
-          create: rows.map((r) => ({
+          create: rows.map((r: ParsedRow) => ({
             rowOrder: r.rowOrder,
             gram: r.gram,
             gramValue: r.gramValue,
             count: r.count,
-            // schema uses rangeLow/rangeHigh — map from serialFrom/serialTo
             serialFrom: r.serialFrom,
             serialTo: r.serialTo,
             series: r.series,
@@ -61,9 +55,20 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const userId = req.nextUrl.searchParams.get("userId");
+  const session = await getSession();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const isAdmin = (session.user as any).role === "ADMIN";
+  const userId = (session.user as any).id;
+  const requestedUserId = req.nextUrl.searchParams.get("userId");
+
+  // Non-admins can only ever see their own documents, regardless of query param
+  const where = isAdmin && requestedUserId ? { userId: requestedUserId } : { userId };
+
   const documents = await prisma.document.findMany({
-    where: userId ? { userId } : undefined,
+    where,
     include: { rows: true },
     orderBy: { createdAt: "desc" },
   });

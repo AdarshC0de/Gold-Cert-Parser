@@ -3,9 +3,8 @@
 import { useState, useEffect } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
+import Image from "next/image";
 
-// Simple browser fingerprint based on user agent + screen + timezone
 function getFingerprint(): string {
   const raw = [
     navigator.userAgent,
@@ -14,8 +13,6 @@ function getFingerprint(): string {
     Intl.DateTimeFormat().resolvedOptions().timeZone,
     navigator.language,
   ].join("|");
-
-  // Simple hash
   let hash = 0;
   for (let i = 0; i < raw.length; i++) {
     hash = (hash << 5) - hash + raw.charCodeAt(i);
@@ -32,36 +29,27 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [fingerprint, setFingerprint] = useState("");
 
-  useEffect(() => {
-    setFingerprint(getFingerprint());
-  }, []);
+  useEffect(() => { setFingerprint(getFingerprint()); }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
-    const res = await signIn("credentials", {
-      email,
-      password,
-      fingerprint,
-      redirect: false,
-    });
-
+    const res = await signIn("credentials", { email, password, fingerprint, redirect: false });
     setLoading(false);
 
     if (res?.error) {
       if (res.error.includes("ACCOUNT_INACTIVE")) {
         setError("Your account has been deactivated. Contact your administrator.");
       } else if (res.error.includes("DEVICE_LIMIT_REACHED")) {
-        setError("Device limit reached. You are already logged in on the maximum number of devices. Contact your administrator to increase the limit.");
+        setError("Device limit reached. Contact your administrator to increase the limit.");
       } else {
         setError("Invalid email or password.");
       }
       return;
     }
 
-    // Check if must change password
     const sessionRes = await fetch("/api/auth/session");
     const session = await sessionRes.json();
     if ((session?.user as any)?.mustChangePassword) {
@@ -72,22 +60,49 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="max-w-sm mx-auto p-6 space-y-4 mt-10">
-      <h1 className="text-2xl font-bold">Login</h1>
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <label className="flex flex-col text-sm">
-          Email
-          <input type="email" required className="border rounded p-2 mt-1" value={email} onChange={(e) => setEmail(e.target.value)} />
-        </label>
-        <label className="flex flex-col text-sm">
-          Password
-          <input type="password" required className="border rounded p-2 mt-1" value={password} onChange={(e) => setPassword(e.target.value)} />
-        </label>
-        {error && <p className="text-red-600 text-sm bg-red-50 p-2 rounded">{error}</p>}
-        <button type="submit" disabled={loading} className="w-full px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50">
-          {loading ? "Logging in..." : "Login"}
-        </button>
-      </form>
+    <main className="min-h-[80vh] flex items-center justify-center px-4">
+      <div className="w-full max-w-sm space-y-6">
+        <div className="text-center space-y-2">
+          <Image src="/logo.jpeg" alt="Shada Finder" width={64} height={64} className="mx-auto rounded-xl shadow" />
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-yellow-600 to-yellow-400 bg-clip-text text-transparent">
+            Shada Finder
+          </h1>
+          <p className="text-xs text-gray-400 tracking-wide">FIND. VERIFY. TRUST.</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4 bg-white p-6 rounded-2xl shadow-sm border">
+          <label className="flex flex-col text-sm">
+            Email
+            <input
+              type="email"
+              required
+              className="border rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 outline-none"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </label>
+          <label className="flex flex-col text-sm">
+            Password
+            <input
+              type="password"
+              required
+              className="border rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 outline-none"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </label>
+
+          {error && <p className="text-red-600 text-sm bg-red-50 p-2.5 rounded-lg">{error}</p>}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full px-4 py-2.5 bg-gradient-to-r from-yellow-600 to-yellow-500 text-white rounded-lg font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
+          >
+            {loading ? "Logging in..." : "Login"}
+          </button>
+        </form>
+      </div>
     </main>
   );
 }
