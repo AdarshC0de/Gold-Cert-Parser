@@ -68,16 +68,16 @@ export default function LoginPage() {
         return;
       }
 
-      // wait for NextAuth cookie
-      await new Promise((resolve) => setTimeout(resolve, 300));
-
+      // Get updated session after login
       const sessionRes = await fetch("/api/auth/session");
       const session = await sessionRes.json();
 
-      if ((session?.user as any)?.mustChangePassword) {
-        router.push("/change-password");
+      router.refresh();
+
+      if (session?.user?.mustChangePassword) {
+        router.replace("/change-password");
       } else {
-        router.push("/upload");
+        router.replace("/upload");
       }
 
     } catch (err) {
@@ -124,7 +124,7 @@ export default function LoginPage() {
               required
               className="border rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 outline-none"
               value={email}
-              onChange={(e)=>setEmail(e.target.value)}
+              onChange={(e) => setEmail(e.target.value)}
             />
 
           </label>
@@ -138,7 +138,7 @@ export default function LoginPage() {
               required
               className="border rounded-lg p-2.5 mt-1 focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 outline-none"
               value={password}
-              onChange={(e)=>setPassword(e.target.value)}
+              onChange={(e) => setPassword(e.target.value)}
             />
 
           </label>
