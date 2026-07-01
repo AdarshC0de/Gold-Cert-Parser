@@ -33,6 +33,17 @@ export default function HomePage() {
             Search Serial
           </Link>
         </div>
+
+        <div className="max-w-md mx-auto">
+          <div className="border-2 border-dashed border-yellow-300 bg-yellow-50 rounded-xl p-4 text-center space-y-2">
+            <p className="text-sm font-semibold text-yellow-700">Try the Demo</p>
+            <p className="text-xs text-gray-600">Use these credentials to log in and explore</p>
+            <div className="bg-white rounded-lg border p-3 text-sm font-mono space-y-1">
+              <p><span className="text-gray-500">Email:</span> admin@gmail.com</p>
+              <p><span className="text-gray-500">Password:</span> admin123</p>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
