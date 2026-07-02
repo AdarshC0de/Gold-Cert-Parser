@@ -1,17 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
+import os from "os";
+import path from "path";
+import { writeFile } from "fs/promises";
 import { getSession } from "@/lib/auth";
-import { ocrImage } from "@/lib/ocr";
 import { uploadToCloudinary } from "@/lib/cloudinary";
-import { buildRows } from "@/lib/parser";
-import type { ParsedHeader } from "@/lib/parser";
+import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 
+/**
+ * POST /api/upload-image-queue
+ * Uploads image to Cloudinary and creates a ProcessingJob (PENDING).
+ * Does NOT parse/OCR — that happens in the queue processor.
+ */
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const userId = (session.user as any).id;
 
   try {
     const formData = await req.formData();
@@ -24,24 +32,23 @@ export async function POST(req: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
+    // Save temp for nothing — just upload to Cloudinary directly
     const safeName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_")}`;
-
     const fileUrl = await uploadToCloudinary(buffer, safeName);
 
-    const extracted = await ocrImage(buffer, file.name);
-    const rows = buildRows(extracted.rows);
+    // Create queue job
+    await prisma.processingJob.create({
+      data: {
+        userId,
+        fileUrl,
+        fileName: file.name,
+        status: "PENDING",
+      },
+    });
 
-    const header: ParsedHeader = {
-      manufacturer: extracted.manufacturer,
-      origin: extracted.origin,
-      invoiceNo: extracted.invoiceNo,
-      certNo: extracted.certNo,
-      refDate: extracted.refDate,
-    };
-
-    return NextResponse.json({ success: true, fileUrl, header, rows });
+    return NextResponse.json({ success: true, fileUrl });
   } catch (error) {
-    console.error("UPLOAD ERROR:", error);
+    console.error("QUEUE IMAGE ERROR:", error);
     return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
   }
 }

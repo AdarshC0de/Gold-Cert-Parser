@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
@@ -31,32 +31,45 @@ export default function QueuePage() {
   const router = useRouter();
   const [data, setData] = useState<QueueData | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const isAdmin = (session?.user as any)?.role === "ADMIN";
 
   const fetchStatus = useCallback(async () => {
-    const res = await fetch("/api/queue");
-    if (res.ok) setData(await res.json());
+    try {
+      const res = await fetch("/api/queue");
+      if (res.ok) setData(await res.json());
+    } catch {}
   }, []);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchStatus();
+    setRefreshing(false);
+  };
 
   useEffect(() => {
     if (status === "unauthenticated") { router.push("/login"); return; }
     if (status === "authenticated") {
       fetchStatus();
-      const interval = setInterval(fetchStatus, 5000);
-      return () => clearInterval(interval);
+      intervalRef.current = setInterval(fetchStatus, 5000);
+      return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
     }
   }, [status, fetchStatus]);
 
   async function sendAction(body: object, loadingKey: string) {
     setActionLoading(loadingKey);
-    await fetch("/api/queue", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    await fetchStatus();
-    setActionLoading(null);
+    try {
+      await fetch("/api/queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      await fetchStatus();
+    } finally {
+      setActionLoading(null);
+    }
   }
 
   if (!data) return <main className="p-6 text-center text-gray-500">Loading...</main>;
@@ -75,67 +88,62 @@ export default function QueuePage() {
             {data.isRunning ? "⚙ Running..." : "● Idle"}
           </span>
 
-          {isAdmin && (
-            <>
-              {!data.isRunning && (
-                <button
-                  onClick={() => sendAction({ action: "start" }, "start")}
-                  disabled={actionLoading === "start"}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm disabled:opacity-50"
-                >
-                  ▶ Start Queue
-                </button>
-              )}
+          {/* Start — available to both admin and user */}
+          {!data.isRunning && counts.pending > 0 && (
+            <button
+              onClick={() => sendAction({ action: "start" }, "start")}
+              disabled={actionLoading === "start"}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm disabled:opacity-50"
+            >
+              {actionLoading === "start" ? "Starting..." : "▶ Start Queue"}
+            </button>
+          )}
 
-              {data.isRunning && (
-                <button
-                  onClick={() => sendAction({ action: "stop" }, "stop")}
-                  disabled={actionLoading === "stop"}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm disabled:opacity-50"
-                >
-                  ⏹ Stop Queue
-                </button>
-              )}
+          {/* Stop — admin only */}
+          {data.isRunning && isAdmin && (
+            <button
+              onClick={() => sendAction({ action: "stop" }, "stop")}
+              disabled={actionLoading === "stop"}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm disabled:opacity-50"
+            >
+              {actionLoading === "stop" ? "Stopping..." : "⏹ Stop Queue"}
+            </button>
+          )}
 
-              {counts.failed > 0 && (
-                <button
-                  onClick={() => sendAction({ action: "retry-all-failed" }, "retry-all")}
-                  disabled={!!actionLoading}
-                  className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm disabled:opacity-50"
-                >
-                  ↺ Retry All Failed ({counts.failed})
-                </button>
-              )}
-            </>
+          {/* Retry all failed — both can retry their own */}
+          {counts.failed > 0 && (
+            <button
+              onClick={() => sendAction({ action: "retry-all-failed" }, "retry-all")}
+              disabled={!!actionLoading}
+              className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm disabled:opacity-50"
+            >
+              {actionLoading === "retry-all" ? "Retrying..." : `↺ Retry Failed (${counts.failed})`}
+            </button>
           )}
 
           <button
-            onClick={fetchStatus}
-            className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50"
           >
-            ↻ Refresh
+            {refreshing ? "..." : "↻ Refresh"}
           </button>
         </div>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="border rounded-xl p-4 text-center">
-          <p className="text-3xl font-bold text-yellow-600">{counts.pending}</p>
-          <p className="text-sm text-gray-500">Pending</p>
-        </div>
-        <div className="border rounded-xl p-4 text-center">
-          <p className="text-3xl font-bold text-blue-600">{counts.processing}</p>
-          <p className="text-sm text-gray-500">Processing</p>
-        </div>
-        <div className="border rounded-xl p-4 text-center">
-          <p className="text-3xl font-bold text-green-600">{counts.done}</p>
-          <p className="text-sm text-gray-500">Done</p>
-        </div>
-        <div className="border rounded-xl p-4 text-center">
-          <p className="text-3xl font-bold text-red-600">{counts.failed}</p>
-          <p className="text-sm text-gray-500">Failed</p>
-        </div>
+        {[
+          { label: "Pending", value: counts.pending, color: "text-yellow-600" },
+          { label: "Processing", value: counts.processing, color: "text-blue-600" },
+          { label: "Done", value: counts.done, color: "text-green-600" },
+          { label: "Failed", value: counts.failed, color: "text-red-600" },
+        ].map(({ label, value, color }) => (
+          <div key={label} className="border rounded-xl p-4 text-center bg-white shadow-sm">
+            <p className={`text-3xl font-bold ${color}`}>{value}</p>
+            <p className="text-sm text-gray-500">{label}</p>
+          </div>
+        ))}
       </div>
 
       {/* Progress bar */}
@@ -146,7 +154,10 @@ export default function QueuePage() {
             <span>{progressPct}%</span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-3">
-            <div className="bg-blue-600 h-3 rounded-full transition-all duration-500" style={{ width: `${progressPct}%` }} />
+            <div
+              className="bg-gradient-to-r from-yellow-500 to-yellow-400 h-3 rounded-full transition-all duration-500"
+              style={{ width: `${progressPct}%` }}
+            />
           </div>
         </div>
       )}
@@ -155,7 +166,7 @@ export default function QueuePage() {
       <section className="space-y-2">
         <h2 className="font-semibold">Recent Jobs (last 50)</h2>
         {data.jobs.length === 0 && <p className="text-gray-500 text-sm">No jobs yet.</p>}
-        <div className="border rounded-xl divide-y overflow-hidden">
+        <div className="border rounded-xl divide-y overflow-hidden bg-white shadow-sm">
           {data.jobs.map((job) => (
             <div key={job.id} className="flex items-start gap-3 p-3 hover:bg-gray-50">
               <span className={`text-xs px-2 py-0.5 rounded-full font-medium mt-0.5 shrink-0 ${STATUS_COLORS[job.status]}`}>
@@ -176,14 +187,25 @@ export default function QueuePage() {
                   {new Date(job.updatedAt).toLocaleTimeString()}
                 </span>
 
-                {/* Retry button for failed jobs — admin only */}
-                {job.status === "FAILED" && isAdmin && (
+                {/* Retry — available to all users for their own jobs */}
+                {job.status === "FAILED" && (
                   <button
                     onClick={() => sendAction({ action: "retry", jobId: job.id }, job.id)}
                     disabled={actionLoading === job.id}
                     className="text-xs px-2 py-1 bg-orange-100 text-orange-700 rounded border border-orange-200 hover:bg-orange-200 disabled:opacity-50"
                   >
                     {actionLoading === job.id ? "..." : "↺ Retry"}
+                  </button>
+                )}
+
+                {/* Skip/cancel pending job — admin only */}
+                {job.status === "PENDING" && isAdmin && (
+                  <button
+                    onClick={() => sendAction({ action: "cancel", jobId: job.id }, `cancel-${job.id}`)}
+                    disabled={!!actionLoading}
+                    className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded border hover:bg-gray-200 disabled:opacity-50"
+                  >
+                    ✕ Skip
                   </button>
                 )}
               </div>
