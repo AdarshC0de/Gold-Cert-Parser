@@ -27,6 +27,7 @@ export default function NavBar() {
             <>
               <Link href="/admin/companies" className="text-purple-600 hover:text-purple-800">Companies</Link>
               <Link href="/admin/documents" className="text-purple-600 hover:text-purple-800">Admin Docs</Link>
+              <Link href="/admin/transfer" className="text-purple-600 hover:text-purple-800">Transfer</Link>
             </>
           )}
         </div>

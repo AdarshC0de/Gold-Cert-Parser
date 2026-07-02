@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { fileUrl, rawText, header, rows } = await req.json();
+    const { fileUrl, fileHash, rawText, header, rows } = await req.json();
     const userId = (session.user as any).id;
 
     if (!fileUrl || !rows?.length) {
@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
       data: {
         userId,
         fileUrl,
+        fileHash,
         rawOcrText: rawText,
         manufacturer: header?.manufacturer,
         origin: header?.origin,

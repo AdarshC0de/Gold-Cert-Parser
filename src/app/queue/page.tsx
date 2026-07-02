@@ -7,20 +7,23 @@ import { useRouter } from "next/navigation";
 interface Job {
   id: string;
   fileName: string;
-  status: "PENDING" | "PROCESSING" | "DONE" | "FAILED";
+  status: "PENDING" | "PAUSED" | "PROCESSING" | "DONE" | "FAILED";
   error: string | null;
+  userId: string;
   createdAt: string;
   updatedAt: string;
 }
 
 interface QueueData {
-  counts: { pending: number; processing: number; done: number; failed: number; total: number };
+  counts: { pending: number; paused: number; processing: number; done: number; failed: number; total: number };
   isRunning: boolean;
+  currentUserId: string;
   jobs: Job[];
 }
 
 const STATUS_COLORS = {
   PENDING: "bg-yellow-100 text-yellow-700",
+  PAUSED: "bg-gray-200 text-gray-600",
   PROCESSING: "bg-blue-100 text-blue-700 animate-pulse",
   DONE: "bg-green-100 text-green-700",
   FAILED: "bg-red-100 text-red-700",
@@ -99,14 +102,14 @@ export default function QueuePage() {
             </button>
           )}
 
-          {/* Stop — admin only */}
-          {data.isRunning && isAdmin && (
+          {/* Pause — available to both admin and user */}
+          {data.isRunning && (
             <button
               onClick={() => sendAction({ action: "stop" }, "stop")}
               disabled={actionLoading === "stop"}
               className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm disabled:opacity-50"
             >
-              {actionLoading === "stop" ? "Stopping..." : "⏹ Stop Queue"}
+              {actionLoading === "stop" ? "Pausing..." : "⏸ Pause Queue"}
             </button>
           )}
 
@@ -132,9 +135,10 @@ export default function QueuePage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {[
           { label: "Pending", value: counts.pending, color: "text-yellow-600" },
+          { label: "Paused", value: counts.paused, color: "text-gray-500" },
           { label: "Processing", value: counts.processing, color: "text-blue-600" },
           { label: "Done", value: counts.done, color: "text-green-600" },
           { label: "Failed", value: counts.failed, color: "text-red-600" },
@@ -198,15 +202,42 @@ export default function QueuePage() {
                   </button>
                 )}
 
-                {/* Skip/cancel pending job — admin only */}
-                {job.status === "PENDING" && isAdmin && (
-                  <button
-                    onClick={() => sendAction({ action: "cancel", jobId: job.id }, `cancel-${job.id}`)}
-                    disabled={!!actionLoading}
-                    className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded border hover:bg-gray-200 disabled:opacity-50"
-                  >
-                    ✕ Skip
-                  </button>
+                {(isAdmin || job.userId === data.currentUserId) && job.status === "PENDING" && (
+                  <>
+                    <button
+                      onClick={() => sendAction({ action: "pause", jobId: job.id }, `pause-${job.id}`)}
+                      disabled={!!actionLoading}
+                      className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded border hover:bg-gray-200 disabled:opacity-50"
+                    >
+                      {actionLoading === `pause-${job.id}` ? "..." : "⏸ Pause"}
+                    </button>
+                    <button
+                      onClick={() => sendAction({ action: "cancel", jobId: job.id }, `cancel-${job.id}`)}
+                      disabled={!!actionLoading}
+                      className="text-xs px-2 py-1 bg-red-50 text-red-600 rounded border border-red-200 hover:bg-red-100 disabled:opacity-50"
+                    >
+                      {actionLoading === `cancel-${job.id}` ? "..." : "✕ Cancel"}
+                    </button>
+                  </>
+                )}
+
+                {(isAdmin || job.userId === data.currentUserId) && job.status === "PAUSED" && (
+                  <>
+                    <button
+                      onClick={() => sendAction({ action: "resume", jobId: job.id }, `resume-${job.id}`)}
+                      disabled={!!actionLoading}
+                      className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded border border-blue-200 hover:bg-blue-200 disabled:opacity-50"
+                    >
+                      {actionLoading === `resume-${job.id}` ? "..." : "▶ Resume"}
+                    </button>
+                    <button
+                      onClick={() => sendAction({ action: "cancel", jobId: job.id }, `cancel-${job.id}`)}
+                      disabled={!!actionLoading}
+                      className="text-xs px-2 py-1 bg-red-50 text-red-600 rounded border border-red-200 hover:bg-red-100 disabled:opacity-50"
+                    >
+                      {actionLoading === `cancel-${job.id}` ? "..." : "✕ Cancel"}
+                    </button>
+                  </>
                 )}
               </div>
             </div>

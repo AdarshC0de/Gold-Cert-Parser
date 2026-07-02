@@ -13,6 +13,7 @@ enum Role {
 
 enum JobStatus {
   PENDING
+  PAUSED
   PROCESSING
   DONE
   FAILED
@@ -50,6 +51,7 @@ model Document {
   userId       String
   user         User          @relation(fields: [userId], references: [id])
   fileUrl      String
+  fileHash     String?
   refNumber    String?
   refDate      String?
   manufacturer String?
@@ -64,6 +66,7 @@ model Document {
   updatedAt    DateTime      @updatedAt
 
   @@index([userId])
+  @@index([fileHash])
 }
 
 model DocumentRow {
@@ -89,6 +92,7 @@ model ProcessingJob {
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   fileUrl    String
   fileName   String
+  fileHash   String?
   status     JobStatus @default(PENDING)
   error      String?
   documentId String?
@@ -97,4 +101,5 @@ model ProcessingJob {
 
   @@index([userId, status])
   @@index([status])
+  @@index([fileHash])
 }

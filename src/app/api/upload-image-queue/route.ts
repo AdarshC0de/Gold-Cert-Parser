@@ -5,6 +5,7 @@ import { writeFile } from "fs/promises";
 import { getSession } from "@/lib/auth";
 import { uploadToCloudinary } from "@/lib/cloudinary";
 import { prisma } from "@/lib/prisma";
+import { hashBuffer } from "@/lib/file-hash";
 
 export const runtime = "nodejs";
 
@@ -31,6 +32,7 @@ export async function POST(req: NextRequest) {
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
+    const fileHash = hashBuffer(buffer);
 
     // Save temp for nothing — just upload to Cloudinary directly
     const safeName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_")}`;
@@ -42,6 +44,7 @@ export async function POST(req: NextRequest) {
         userId,
         fileUrl,
         fileName: file.name,
+        fileHash,
         status: "PENDING",
       },
     });

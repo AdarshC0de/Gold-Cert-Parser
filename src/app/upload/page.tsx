@@ -14,6 +14,8 @@ export default function UploadPage() {
   const [results, setResults] = useState<{ name: string; status: string }[]>([]);
   const [pdfResult, setPdfResult] = useState<{ pagesFound: number; message: string } | null>(null);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
+  const [fileHash, setFileHash] = useState<string | null>(null);
+  const [isDuplicate, setIsDuplicate] = useState(false);
   const [header, setHeader] = useState<ParsedHeader | null>(null);
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [saved, setSaved] = useState(false);
@@ -37,14 +39,14 @@ export default function UploadPage() {
     const res = await fetch("/api/upload", { method: "POST", body: formData });
     const data = await res.json();
     if (!data.success) throw new Error(data.error ?? "Upload failed");
-    return { fileUrl: data.fileUrl, header: data.header ?? {}, rows: data.rows ?? [] };
+    return { fileUrl: data.fileUrl, fileHash: data.fileHash as string | undefined, duplicate: !!data.duplicate, header: data.header ?? {}, rows: data.rows ?? [] };
   }
 
-  async function saveDocument(fileUrl: string, header: ParsedHeader, rows: ParsedRow[]) {
+  async function saveDocument(fileUrl: string, header: ParsedHeader, rows: ParsedRow[], fileHash?: string | null) {
     const res = await fetch("/api/documents", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: (session!.user as any).id, fileUrl, header, rows }),
+      body: JSON.stringify({ userId: (session!.user as any).id, fileUrl, fileHash, header, rows }),
     });
     const data = await res.json();
     if (!data.success) throw new Error(data.error ?? "Save failed");
@@ -57,6 +59,8 @@ export default function UploadPage() {
     setResults([]);
     setPdfResult(null);
     setFileUrl(null);
+    setFileHash(null);
+    setIsDuplicate(false);
     setHeader(null);
     setRows([]);
 
@@ -78,11 +82,13 @@ export default function UploadPage() {
 
     if (!imageFiles.length) { setLoading(false); return; }
 
-    // Admin single image — show review table
+    // Admin single image — show review table (unqueued, synchronous — needs manual review before saving anyway)
     if (isAdmin && imageFiles.length === 1 && !pdfFiles.length) {
       try {
-        const { fileUrl, header, rows } = await uploadSingleFile(imageFiles[0]);
+        const { fileUrl, fileHash, duplicate, header, rows } = await uploadSingleFile(imageFiles[0]);
         setFileUrl(fileUrl);
+        setFileHash(fileHash ?? null);
+        setIsDuplicate(duplicate);
         setHeader(header);
         setRows(rows);
       } catch (e: any) {
@@ -92,19 +98,28 @@ export default function UploadPage() {
       return;
     }
 
-    // Bulk images — auto save
+    // Bulk images — queue them just like PDF pages, instead of parsing inline.
+    // This survives navigation (progress lives in the DB, not page state) and
+    // shows up in /queue alongside PDF-derived jobs.
     const newResults: { name: string; status: string }[] = [];
     for (let i = 0; i < imageFiles.length; i++) {
       setCurrentFileIndex(i);
       try {
-        const { fileUrl, header, rows } = await uploadSingleFile(imageFiles[i]);
-        await saveDocument(fileUrl, header, rows);
-        newResults.push({ name: imageFiles[i].name, status: "✓ Saved" });
+        const formData = new FormData();
+        formData.append("file", imageFiles[i]);
+        const res = await fetch("/api/upload-image-queue", { method: "POST", body: formData });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error ?? "Queue failed");
+        newResults.push({ name: imageFiles[i].name, status: "✓ Queued" });
       } catch (e: any) {
         newResults.push({ name: imageFiles[i].name, status: "✗ Failed: " + e.message });
       }
       setResults([...newResults]);
     }
+
+    // Kick off processing (safe to call even if already running — server no-ops in that case)
+    fetch("/api/queue", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "start" }) }).catch(() => {});
+
     setLoading(false);
   }
 
@@ -116,7 +131,7 @@ export default function UploadPage() {
     if (!fileUrl || !session?.user) return;
     setLoading(true);
     try {
-      await saveDocument(fileUrl, header ?? { manufacturer: null, origin: null, invoiceNo: null, certNo: null, refDate: null }, rows);
+      await saveDocument(fileUrl, header ?? { manufacturer: null, origin: null, invoiceNo: null, certNo: null, refDate: null }, rows, fileHash);
       setSaved(true);
     } catch (e: any) {
       alert("Save failed: " + e.message);
@@ -190,6 +205,11 @@ export default function UploadPage() {
       {isAdmin && header && rows.length > 0 && !saved && (
         <section className="space-y-4">
           <h2 className="font-semibold text-lg">Review & Edit Before Saving</h2>
+          {isDuplicate && (
+            <p className="text-sm px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-blue-700">
+              ℹ This exact file was already parsed before — reused that result instead of re-running OCR. Edit as needed before saving.
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-3">
             {(["manufacturer", "origin", "invoiceNo", "certNo", "refDate"] as (keyof ParsedHeader)[]).map((field) => (
               <label key={field} className="flex flex-col text-sm">

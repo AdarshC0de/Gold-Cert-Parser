@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { uploadPdfToCloudinary } from "@/lib/cloudinary";
+import { hashBuffer } from "@/lib/file-hash";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -24,6 +25,11 @@ export async function POST(req: NextRequest) {
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
+    // Note: this hashes the whole PDF, so it only catches the exact same PDF
+    // being re-uploaded — not a page from this PDF matching a separately
+    // uploaded single image of the same certificate. Good enough for the
+    // common case (someone re-uploads the same file).
+    const fileHash = hashBuffer(buffer);
 
     const result = await uploadPdfToCloudinary(buffer, `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9]/g, "_")}`);
 
@@ -47,6 +53,7 @@ export async function POST(req: NextRequest) {
           userId,
           fileUrl: pageUrl,
           fileName: `${file.name} — Page ${i}`,
+          fileHash: pages > 1 ? undefined : fileHash, // multi-page PDFs: pages are distinct images, don't dedup by whole-PDF hash
           status: "PENDING",
         },
       });

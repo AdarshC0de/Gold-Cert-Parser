@@ -64,6 +64,53 @@ async function processJob(jobId: string): Promise<void> {
   await prisma.processingJob.update({ where: { id: jobId }, data: { status: "PROCESSING" } });
 
   try {
+    // Duplicate check: if a document from this exact file (by hash, any
+    // user/company) was already parsed, reuse its data instead of spending
+    // another OCR call. Each user still gets their own independent Document
+    // row — visibility is not shared, only the parsing cost is saved.
+    if (job.fileHash) {
+      const existing = await prisma.document.findFirst({
+        where: { fileHash: job.fileHash, rows: { some: {} } },
+        include: { rows: true },
+        orderBy: { createdAt: "desc" },
+      });
+
+      if (existing) {
+        const document = await prisma.document.create({
+          data: {
+            userId: job.userId,
+            fileUrl: job.fileUrl,
+            fileHash: job.fileHash,
+            manufacturer: existing.manufacturer,
+            origin: existing.origin,
+            invoiceNo: existing.invoiceNo,
+            certNo: existing.certNo,
+            refDate: existing.refDate,
+            verified: true,
+            rows: {
+              create: existing.rows.map((r) => ({
+                rowOrder: r.rowOrder,
+                gram: r.gram,
+                gramValue: r.gramValue,
+                count: r.count,
+                serialFrom: r.serialFrom,
+                serialTo: r.serialTo,
+                series: r.series,
+                purity: r.purity,
+                brand: r.brand,
+              })),
+            },
+          },
+        });
+
+        await prisma.processingJob.update({
+          where: { id: jobId },
+          data: { status: "DONE", documentId: document.id },
+        });
+        return;
+      }
+    }
+
     const safeName = `job-${jobId}.jpg`;
     const tempPath = await downloadToTemp(job.fileUrl, safeName);
     const extracted = await ocrImage(tempPath);
@@ -76,6 +123,7 @@ async function processJob(jobId: string): Promise<void> {
       data: {
         userId: job.userId,
         fileUrl: job.fileUrl,
+        fileHash: job.fileHash,
         manufacturer: extracted.manufacturer,
         origin: extracted.origin,
         invoiceNo: extracted.invoiceNo,

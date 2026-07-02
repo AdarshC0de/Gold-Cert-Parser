@@ -214,58 +214,53 @@ export default function DocumentsPage() {
 
               <button
                 onClick={() => {
+                  // A separate popup window (window.open + document.write) is
+                  // what triggers the desktop app's "you'll need a new app to
+                  // open this about:blank link" dialog — the app shell doesn't
+                  // reliably own popup windows. Printing via a hidden iframe
+                  // in the current window avoids opening any new window at all.
+                  const existing = document.getElementById("print-frame");
+                  if (existing) existing.remove();
 
-                  const printWindow = window.open("", "_blank");
+                  const iframe = document.createElement("iframe");
+                  iframe.id = "print-frame";
+                  iframe.style.position = "fixed";
+                  iframe.style.right = "0";
+                  iframe.style.bottom = "0";
+                  iframe.style.width = "0";
+                  iframe.style.height = "0";
+                  iframe.style.border = "0";
+                  document.body.appendChild(iframe);
 
-                  if (!printWindow) return;
+                  const doc = iframe.contentWindow?.document;
+                  if (!doc) return;
 
+                  doc.open();
+                  doc.write(`
+                    <html>
+                      <head>
+                        <title>Print Certificate</title>
+                        <style>
+                          body { margin:0; display:flex; justify-content:center; align-items:center; }
+                          img { max-width:100%; height:auto; }
+                        </style>
+                      </head>
+                      <body>
+                        <img src="${lightbox}" id="printImage"/>
+                      </body>
+                    </html>
+                  `);
+                  doc.close();
 
-                  printWindow.document.write(`
-      <html>
-        <head>
-          <title>Print Certificate</title>
-
-          <style>
-            body {
-              margin:0;
-              display:flex;
-              justify-content:center;
-              align-items:center;
-            }
-
-            img {
-              max-width:100%;
-              height:auto;
-            }
-          </style>
-
-        </head>
-
-        <body>
-
-          <img src="${lightbox}" id="printImage"/>
-
-          <script>
-
-            const img = document.getElementById("printImage");
-
-            img.onload = function(){
-
-              window.print();
-
-            };
-
-          </script>
-
-        </body>
-
-      </html>
-    `);
-
-
-                  printWindow.document.close();
-
-
+                  const img = doc.getElementById("printImage") as HTMLImageElement | null;
+                  const doPrint = () => {
+                    iframe.contentWindow?.focus();
+                    iframe.contentWindow?.print();
+                  };
+                  if (img) {
+                    if (img.complete) doPrint();
+                    else img.onload = doPrint;
+                  }
                 }}
 
                 className="flex items-center gap-2 px-4 py-2 bg-white text-gray-800 rounded-lg hover:bg-gray-100 shadow"

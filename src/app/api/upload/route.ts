@@ -4,6 +4,8 @@ import { ocrImage } from "@/lib/ocr";
 import { buildRows } from "@/lib/parser";
 import type { ParsedHeader } from "@/lib/parser";
 import { uploadToCloudinary } from "@/lib/cloudinary";
+import { hashBuffer } from "@/lib/file-hash";
+import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 
@@ -39,7 +41,7 @@ export async function POST(req: NextRequest) {
 
     const buffer = Buffer.from(bytes);
 
-
+    const fileHash = hashBuffer(buffer);
 
     // Upload image to Cloudinary
     const fileUrl = await uploadToCloudinary(
@@ -47,28 +49,60 @@ export async function POST(req: NextRequest) {
       `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_")}`
     );
 
+    // Duplicate check: if this exact file (any user) was already parsed,
+    // reuse that result instead of spending another OCR call. Visibility
+    // stays siloed — this only pre-fills the review form; a new independent
+    // Document is created for this admin's account when they save.
+    const existing = await prisma.document.findFirst({
+      where: { fileHash, rows: { some: {} } },
+      include: { rows: true },
+      orderBy: { createdAt: "desc" },
+    });
 
-    // OCR from Cloudinary URL
-    const extracted = await ocrImage(fileUrl);
+    let header: ParsedHeader;
+    let rows;
+    let duplicate = false;
 
+    if (existing) {
+      duplicate = true;
+      header = {
+        manufacturer: existing.manufacturer,
+        origin: existing.origin,
+        invoiceNo: existing.invoiceNo,
+        certNo: existing.certNo,
+        refDate: existing.refDate,
+      };
+      rows = existing.rows.map((r) => ({
+        rowOrder: r.rowOrder,
+        gram: r.gram,
+        gramValue: r.gramValue,
+        count: r.count,
+        serialFrom: r.serialFrom,
+        serialTo: r.serialTo,
+        series: r.series,
+        purity: r.purity ?? "",
+        brand: r.brand ?? "",
+      }));
+    } else {
+      // OCR from Cloudinary URL
+      const extracted = await ocrImage(fileUrl);
 
-    const rows = buildRows(extracted.rows);
+      rows = buildRows(extracted.rows);
 
+      header = {
 
+        manufacturer: extracted.manufacturer,
 
-    const header: ParsedHeader = {
+        origin: extracted.origin,
 
-      manufacturer: extracted.manufacturer,
+        invoiceNo: extracted.invoiceNo,
 
-      origin: extracted.origin,
+        certNo: extracted.certNo,
 
-      invoiceNo: extracted.invoiceNo,
+        refDate: extracted.refDate,
 
-      certNo: extracted.certNo,
-
-      refDate: extracted.refDate,
-
-    };
+      };
+    }
 
 
     return NextResponse.json({
@@ -76,6 +110,10 @@ export async function POST(req: NextRequest) {
       success: true,
 
       fileUrl,
+
+      fileHash,
+
+      duplicate,
 
       header,
 
