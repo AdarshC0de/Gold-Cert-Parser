@@ -93,7 +93,7 @@ export default function DocumentsPage() {
 
           <div
             className="relative max-w-4xl max-h-full"
-            onClick={(e)=>e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
           >
 
 
@@ -111,9 +111,9 @@ export default function DocumentsPage() {
               {/* DOWNLOAD LOCAL */}
               <button
 
-                onClick={async()=>{
+                onClick={async () => {
 
-                  try{
+                  try {
 
                     const response = await fetch(lightbox);
 
@@ -141,9 +141,9 @@ export default function DocumentsPage() {
 
 
                   }
-                  catch(error){
+                  catch (error) {
 
-                    console.error("Download failed:",error);
+                    console.error("Download failed:", error);
 
                     alert("Unable to download certificate");
 
@@ -168,23 +168,23 @@ export default function DocumentsPage() {
 
               <button
 
-                onClick={async()=>{
+                onClick={async () => {
 
-                  try{
+                  try {
 
-                    if(navigator.share){
+                    if (navigator.share) {
 
                       await navigator.share({
 
                         url: lightbox,
 
-                        title:"Gold Certificate"
+                        title: "Gold Certificate"
 
                       });
 
                     }
 
-                    else{
+                    else {
 
                       await navigator.clipboard.writeText(lightbox);
 
@@ -194,7 +194,7 @@ export default function DocumentsPage() {
 
 
                   }
-                  catch{}
+                  catch { }
 
                 }}
 
@@ -213,54 +213,62 @@ export default function DocumentsPage() {
               {/* PRINT */}
 
               <button
+                onClick={() => {
 
-                onClick={()=>{
+                  const printWindow = window.open("", "_blank");
 
-                  const printWindow = window.open("","_blank");
-
-
-                  if(printWindow){
-
-                    printWindow.document.write(`
-
-                    <html>
-
-                    <body style="
-                    margin:0;
-                    display:flex;
-                    justify-content:center;
-                    align-items:center;
-                    ">
+                  if (!printWindow) return;
 
 
-                    <img
+                  printWindow.document.write(`
+      <html>
+        <head>
+          <title>Print Certificate</title>
 
-                    src="${lightbox}"
+          <style>
+            body {
+              margin:0;
+              display:flex;
+              justify-content:center;
+              align-items:center;
+            }
 
-                    style="max-width:100%;"
+            img {
+              max-width:100%;
+              height:auto;
+            }
+          </style>
 
-                    onload="window.print();window.close();"
+        </head>
 
-                    />
+        <body>
+
+          <img src="${lightbox}" id="printImage"/>
+
+          <script>
+
+            const img = document.getElementById("printImage");
+
+            img.onload = function(){
+
+              window.print();
+
+            };
+
+          </script>
+
+        </body>
+
+      </html>
+    `);
 
 
-                    </body>
-
-                    </html>
-
-                    `);
-
-
-                    printWindow.document.close();
-
-                  }
+                  printWindow.document.close();
 
 
                 }}
 
-
                 className="flex items-center gap-2 px-4 py-2 bg-white text-gray-800 rounded-lg hover:bg-gray-100 shadow"
-
               >
 
                 🖨 Print
@@ -280,7 +288,7 @@ export default function DocumentsPage() {
 
             className="absolute top-4 right-4 text-white text-4xl font-bold"
 
-            onClick={()=>setLightbox(null)}
+            onClick={() => setLightbox(null)}
 
           >
 
@@ -322,7 +330,7 @@ export default function DocumentsPage() {
 
 
 
-      {documents.length===0 && (
+      {documents.length === 0 && (
 
         <p className="text-gray-500">
 
@@ -341,7 +349,7 @@ export default function DocumentsPage() {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
 
 
-        {documents.map((doc)=>(
+        {documents.map((doc) => (
 
 
           <div
@@ -358,7 +366,7 @@ export default function DocumentsPage() {
 
               className="cursor-pointer"
 
-              onClick={()=>setLightbox(doc.fileUrl)}
+              onClick={() => setLightbox(doc.fileUrl)}
 
             >
 
