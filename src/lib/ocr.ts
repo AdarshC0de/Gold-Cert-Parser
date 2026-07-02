@@ -1,5 +1,4 @@
 import { GoogleGenAI } from "@google/genai";
-import fs from "fs";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
@@ -22,13 +21,12 @@ export interface ExtractedData {
   refDate: string | null;
 }
 
-export async function ocrImage(imagePath: string): Promise<ExtractedData> {
+export async function ocrImage(imageBuffer: Buffer, fileName: string): Promise<ExtractedData> {
   if (!process.env.GEMINI_API_KEY) throw new Error("GEMINI_API_KEY missing in .env");
 
-  const imageBuffer = fs.readFileSync(imagePath);
   const base64 = imageBuffer.toString("base64");
 
-  const ext = imagePath.split(".").pop()?.toLowerCase();
+  const ext = fileName.split(".").pop()?.toLowerCase();
   const mimeType =
     ext === "png" ? "image/png" :
     ext === "gif" ? "image/gif" :
