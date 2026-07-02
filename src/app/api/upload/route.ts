@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { writeFile, mkdir } from "fs/promises";
+import path from "path";
+import os from "os";
 import { ocrImage } from "@/lib/ocr";
-import { uploadToCloudinary } from "@/lib/cloudinary";
 import { buildRows } from "@/lib/parser";
+import { uploadToCloudinary } from "@/lib/cloudinary";
 import type { ParsedHeader } from "@/lib/parser";
 
 export const runtime = "nodejs";
@@ -24,11 +26,17 @@ export async function POST(req: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
+    // Save temp file for Gemini OCR (needs a file path)
+    const tempDir = os.tmpdir();
     const safeName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_")}`;
+    const tempPath = path.join(tempDir, safeName);
+    await writeFile(tempPath, buffer);
 
+    // Upload to Cloudinary (permanent storage)
     const fileUrl = await uploadToCloudinary(buffer, safeName);
 
-    const extracted = await ocrImage(buffer, file.name);
+    // Run Gemini OCR on temp file
+    const extracted = await ocrImage(tempPath);
     const rows = buildRows(extracted.rows);
 
     const header: ParsedHeader = {
